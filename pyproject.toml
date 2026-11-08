@@ -1,0 +1,28 @@
+[project]
+name = "profile-pic"
+version = "0.1.0"
+description = "Stylised avatar generated from a photo with classic image processing."
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "numpy>=1.26",
+    "pillow>=10.3",
+    "opencv-python-headless>=4.9",
+    "scipy>=1.11",
+    "scikit-image>=0.22",
+]
+
+[project.optional-dependencies]
+# Automatic background mask (segmentation only, no generative model).
+# Only needed for the `simplify` and `remove` background modes.
+bg = ["rembg[cpu]>=2.0.57"]
+
+[project.scripts]
+avatar = "avatar.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/avatar"]
