@@ -57,7 +57,7 @@ cd -
 uv sync --extra bg      # dependencies + the `avatar` command; `bg` adds rembg (background removal)
 ```
 
-Without `--extra bg` everything works except the `simplify` and `remove` background modes (unless you supply a mask with `--mask-from`). On first use, `rembg` downloads its model (`u2net_human_seg`, about 170 MB) to `~/.rembg/models/`.
+Without `--extra bg` everything works except the `simplify` and `remove` background modes (unless you supply a mask with `--mask-from`). On first use, `rembg` downloads its model (`u2net_human_seg` for people, about 170 MB; `isnet-general-use` for `--subject general`, about 180 MB) to `~/.rembg/models/`.
 
 ### 5. Set your colours
 
@@ -78,6 +78,7 @@ Everything runs through one command, `uv run avatar <command>`, and every comman
   uv run avatar crop --image profile --face 1 # several faces: pick one, counted left to right
   uv run avatar crop --image profile --face 1 --pad --zoom 2.2 # face near the edge: see below
   uv run avatar crop --image profile --box 236,475,806 --force # exact square x,y,size; overwrite
+  uv run avatar crop --image van --no-face # not a person: largest centred square
   ```
 
   If your face is close to the edge of the photo, a square crop can't be centred on it, so `crop` shifts the square and says so. `--pad` keeps your face centred instead and fills the part past the edge with black. With `--background remove`, the black is replaced by the flat background colour, but your shoulder is cut off in a straight line where the photo ends.
@@ -114,7 +115,16 @@ Every render is kept in `work/<image>/renders/`, so `make` gives you the exact p
 
 ### Background mask
 
-The `simplify` and `remove` backgrounds need a mask of you. It is computed with rembg on first use and cached in `work/<image>/mask.png`; it is recomputed when the cropped photo changes or with `--redo-mask`. rembg keeps people, so in a photo with someone else next to you, check the `remove` column of the overview.
+The `simplify` and `remove` backgrounds need a mask of the subject. It is computed with rembg on first use and cached in `work/<image>/mask-<subject>.png`; it is recomputed when the cropped photo changes or with `--redo-mask`.
+
+By default the mask uses a model trained on people, which keeps everyone in the photo, so with someone else next to you, check the `remove` column of the overview. For anything else (a pet, a van, a plant), add `--subject general` to `overview`, `explore` and `make`. It uses a general model that keeps the main object (about 180 MB, downloaded on first use):
+
+```sh
+uv run avatar overview --image van --subject general
+uv run avatar make lineart --image van --subject general --background remove --theme light
+```
+
+A landscape has no subject to cut out, so use the `keep` background for it.
 
 If the mask is wrong, make one in Preview: open the cropped photo, Tools > Remove Background, erase anything else with the selection tools, File > Export as PNG. Then pass it once (it replaces the cached mask):
 

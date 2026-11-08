@@ -36,9 +36,12 @@ def detect_faces(img: Image.Image) -> list[tuple[float, float, float]]:
     return sorted(merged, key=lambda f: f[0])
 
 
-def auto_box(img: Image.Image, zoom: float, face_index: int | None, pad: bool) -> tuple[int, int, int]:
+def auto_box(img: Image.Image, zoom: float, face_index: int | None, pad: bool,
+             no_face: bool = False) -> tuple[int, int, int]:
     w, h = img.size
     max_side = min(w, h)
+    if no_face:  # pets, objects, landscapes: the largest centred square
+        return (w - max_side) // 2, (h - max_side) // 2, max_side
     faces = detect_faces(img)
     if not faces:
         warn("no face detected, falling back to a centred square crop (use --box to set one)")
@@ -76,7 +79,7 @@ def _padded_crop(img: Image.Image, x: int, y: int, side: int) -> Image.Image:
 
 
 def crop(image: str, box: tuple[int, int, int] | None, zoom: float, face: int | None, pad: bool,
-         out: str | None, force: bool) -> None:
+         out: str | None, force: bool, no_face: bool = False) -> None:
     src = resolve_image(image, ORIGINAL_DIR)
     if not src.is_file():
         die(missing_image_msg(src, ORIGINAL_DIR))
@@ -91,7 +94,7 @@ def crop(image: str, box: tuple[int, int, int] | None, zoom: float, face: int | 
         if not pad and (x < 0 or y < 0 or x + side > w or y + side > h):
             die(f"box {x},{y},{side} falls outside the {w}×{h} image (add --pad to fill the rest with black)")
     else:
-        x, y, side = auto_box(img, zoom, face, pad)
+        x, y, side = auto_box(img, zoom, face, pad, no_face)
 
     outside = x < 0 or y < 0 or x + side > w or y + side > h
     cropped = _padded_crop(img, x, y, side) if outside else img.crop((x, y, x + side, y + side))

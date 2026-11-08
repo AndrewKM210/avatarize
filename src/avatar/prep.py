@@ -1,4 +1,4 @@
-"""Normalise the cropped image and get a background mask (cached in work/<stem>/mask.png)."""
+"""Normalise the cropped image and get a background mask (cached in work/<stem>/mask-<subject>.png)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,11 @@ from PIL import Image
 
 from .common import WORK_DIR, WORK_SIZE, die, open_image, rel, warn
 
-MODEL = "u2net_human_seg"  # rembg model trained to segment people
+# rembg model per kind of subject
+MODELS = {
+    "person": "u2net_human_seg",  # trained on people: clean hair and clothing edges, ignores everything else
+    "general": "isnet-general-use",  # the main object in the photo: a pet, a van, a plant, ...
+}
 
 
 def normalise(img: Image.Image) -> np.ndarray:
@@ -25,23 +29,24 @@ def normalise(img: Image.Image) -> np.ndarray:
     return cv2.bilateralFilter(rgb, d=9, sigmaColor=35, sigmaSpace=7)
 
 
-def _rembg(img: Image.Image) -> tuple[Image.Image, str] | None:
+def _rembg(img: Image.Image, subject: str) -> tuple[Image.Image, str] | None:
     try:
         from rembg import new_session, remove
     except ImportError:
         warn("rembg is not installed (uv sync --extra bg): no mask, so only the keep mode is available")
         return None
-    print(f"mask: segmenting with rembg/{MODEL} (the first run downloads the model)...")
+    model = MODELS[subject]
+    print(f"mask: segmenting with rembg/{model} (the first run downloads the model)...")
     img = img.convert("RGB").resize((WORK_SIZE, WORK_SIZE), Image.LANCZOS)
     # Segment only the photo itself: black padding confuses the model.
     left, top, right, bottom = _padding(img)
     box = (left, top, WORK_SIZE - right, WORK_SIZE - bottom)
     if box[0] >= box[2] or box[1] >= box[3]:
         die("the image is entirely black")
-    part = remove(img.crop(box), session=new_session(MODEL), only_mask=True, post_process_mask=True)
+    part = remove(img.crop(box), session=new_session(model), only_mask=True, post_process_mask=True)
     mask = Image.new("L", img.size, 0)
     mask.paste(part.convert("L"), box[:2])
-    return mask, f"rembg/{MODEL}"
+    return mask, f"rembg/{model}"
 
 
 def _from_file(path: Path) -> Image.Image:
@@ -85,20 +90,21 @@ def _clean(mask: Image.Image, img: Image.Image) -> Image.Image:
     return Image.fromarray(cv2.GaussianBlur(m, (0, 0), 1.0))
 
 
-def mask_path(stem: str) -> Path:
-    return WORK_DIR / stem / "mask.png"
+def mask_path(stem: str, subject: str) -> Path:
+    return WORK_DIR / stem / f"mask-{subject}.png"
 
 
-def get_mask(src: Path, img: Image.Image, stem: str, *, mask_from: Path | None, redo: bool) -> np.ndarray | None:
-    """Return the mask (uint8, 255 = subject) or None. Reused from work/<stem>/mask.png when still valid."""
-    path = mask_path(stem)
+def get_mask(src: Path, img: Image.Image, stem: str, *, subject: str, mask_from: Path | None,
+             redo: bool) -> np.ndarray | None:
+    """Return the mask (uint8, 255 = subject) or None. Reused from work/<stem>/mask-<subject>.png when valid."""
+    path = mask_path(stem, subject)
     if mask_from:
         mask, how = _from_file(mask_from), rel(mask_from)
     elif path.exists() and not redo and path.stat().st_mtime >= src.stat().st_mtime:
         print(f"mask: reusing {rel(path)} (--redo-mask to regenerate)")
         return np.asarray(Image.open(path).convert("L"))
     else:
-        result = _rembg(img)
+        result = _rembg(img, subject)
         if result is None:
             return None
         mask, how = result

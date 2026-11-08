@@ -23,7 +23,7 @@ import numpy as np
 from . import sheet
 from .common import DEFAULT_IMAGE, MODES, OUT_DIR, WORK_DIR, die, load_cropped, load_palette, rel, warn
 from .crop import crop
-from .prep import get_mask, mask_path, normalise
+from .prep import MODELS, get_mask, mask_path, normalise
 from .techniques import TECHNIQUES, Ctx, Technique, mode_input
 
 # ============================================================ jobs and the render cache
@@ -39,6 +39,7 @@ class Inputs:
     stem: str
     subject: np.ndarray
     mask: np.ndarray | None
+    subject_kind: str  # which mask model: person or general
     palette: dict
     valid_after: float  # renders older than this (photo or mask changed) are stale
 
@@ -61,7 +62,8 @@ def render_path(inp: Inputs, j: Job) -> Path:
     if j.theme:
         t = inp.palette["themes"][j.theme]
         colours = f"{j.theme}-{t['accent']}-{t['paper']}".replace("#", "")
-    name = "_".join(x for x in (j.tech.name, j.mode, colours, slug(j.params)) if x)
+    mode = j.mode if j.mode == "keep" else f"{j.mode}-{inp.subject_kind}"  # the mask depends on --subject
+    name = "_".join(x for x in (j.tech.name, mode, colours, slug(j.params)) if x)
     return WORK_DIR / inp.stem / "renders" / name
 
 
@@ -129,10 +131,10 @@ def parse_sets(tech: Technique, items: list[str] | None) -> dict[str, list]:
 
 def load_inputs(args) -> Inputs:
     src, img = load_cropped(args.image)
-    mask = get_mask(src, img, src.stem, mask_from=args.mask_from, redo=args.redo_mask)
-    mp = mask_path(src.stem)
+    mask = get_mask(src, img, src.stem, subject=args.subject, mask_from=args.mask_from, redo=args.redo_mask)
+    mp = mask_path(src.stem, args.subject)
     valid_after = max(src.stat().st_mtime, mp.stat().st_mtime if mask is not None and mp.exists() else 0)
-    return Inputs(src, src.stem, normalise(img), mask, load_palette(), valid_after)
+    return Inputs(src, src.stem, normalise(img), mask, args.subject, load_palette(), valid_after)
 
 
 def themes_for(tech: Technique, mode: str, themes: list[str]) -> list[str | None]:
@@ -183,7 +185,7 @@ def list_techniques() -> None:
 # ============================================================ commands
 
 def cmd_crop(args) -> None:
-    crop(args.image, args.box, args.zoom, args.face, args.pad, args.out, args.force)
+    crop(args.image, args.box, args.zoom, args.face, args.pad, args.out, args.force, args.no_face)
 
 
 def cmd_overview(args) -> None:
@@ -300,7 +302,9 @@ def main(argv: list[str] | None = None) -> None:
     common.add_argument("--open", action="store_true", help="open the result when done")
     common.add_argument("--fresh", action="store_true",
                         help="render again instead of reusing earlier renders (Primitive gives a new random result)")
-    m = common.add_argument_group("background mask (cached in work/<image>/mask.png)")
+    m = common.add_argument_group("background mask (cached in work/<image>/mask-<subject>.png)")
+    m.add_argument("--subject", choices=list(MODELS), default="person",
+                   help="what to cut out: person (default) or general (a pet, a van, any main object)")
     m.add_argument("--mask-from", type=Path, metavar="PNG",
                    help="use a background-removed PNG (e.g. from Preview) instead of rembg")
     m.add_argument("--redo-mask", action="store_true", help="compute the mask again")
@@ -317,6 +321,8 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--zoom", type=float, default=2.6,
                    help="crop side as a multiple of the face height (default 2.6; larger = looser)")
     p.add_argument("--face", type=int, metavar="N", help="which face to crop around, counted left to right")
+    p.add_argument("--no-face", action="store_true",
+                   help="don't look for a face: take the largest centred square (pets, objects, landscapes)")
     p.add_argument("--pad", action="store_true",
                    help="let the crop extend past the photo edge, filling it with black")
     p.add_argument("--box", type=parse_box, metavar="X,Y,SIZE", help="explicit square crop in original pixels (negative values: --box=-100,0,1800 --pad)")
