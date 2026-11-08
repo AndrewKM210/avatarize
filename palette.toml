@@ -1,0 +1,20 @@
+# Colours used by the pipeline. Edit freely, then re-run generate.py and contact_sheet.py.
+#
+# Each theme produces its own variants wherever a colour is applied:
+#   accent  - flat background in `remove` mode; ink colour for two-tone techniques (line art, dither, halftone)
+#   paper   - background for two-tone techniques
+#
+# "light" is meant for the light-mode website, "dark" for the dark-mode website.
+
+[themes.light]
+accent = "#7A1F2E"   # bordeaux
+paper  = "#FBF7F2"   # warm off-white
+
+[themes.dark]
+accent = "#E8956B"   # light orange
+paper  = "#1F1B18"   # warm near-black
+
+# Backgrounds the contact sheet places the small circle previews on.
+[preview]
+light_ui = "#FFFFFF"   # GitHub / X light
+dark_ui  = "#0D1117"   # GitHub dark
