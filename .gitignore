@@ -1,0 +1,16 @@
+
+# Generated
+.DS_Store
+__pycache__
+uv.lock
+.venv
+
+# Media
+*.jpg
+*.jpeg
+*.svg
+*.png
+
+# Mardowns
+*.md
+!README.md
