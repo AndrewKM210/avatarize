@@ -1,5 +1,5 @@
 [project]
-name = "profile-pic"
+name = "avatarize"
 version = "0.1.0"
 description = "Stylised avatar generated from a photo with classic image processing."
 readme = "README.md"
