@@ -73,14 +73,14 @@ Everything runs through one command, `uv run avatar <command>`, and every comman
 - **Not square?** Put it in `assets/original/` and crop it:
 
   ```sh
-  uv run avatar crop --image profile            # finds your face and crops around it
-  uv run avatar crop --image profile --zoom 3   # looser crop (default 2.6)
-  uv run avatar crop --image profile --face 1     # several faces: pick one, counted left to right
-  uv run avatar crop --image profile --face 1 --pad --zoom 2.2   # face near the edge: see below
+  uv run avatar crop --image profile # finds your face and crops around it
+  uv run avatar crop --image profile --zoom 3 # looser crop (default 2.6)
+  uv run avatar crop --image profile --face 1 # several faces: pick one, counted left to right
+  uv run avatar crop --image profile --face 1 --pad --zoom 2.2 # face near the edge: see below
   uv run avatar crop --image profile --box 236,475,806 --force # exact square x,y,size; overwrite
   ```
 
-  If your face is close to the edge of the photo, a square crop can't be centred on it, so `crop` shifts the square and says so. `--pad` keeps your face centred instead and fills the part past the edge by mirroring the photo. That works well for a jacket or plain background; keep `--zoom` low enough that it doesn't mirror your head.
+  If your face is close to the edge of the photo, a square crop can't be centred on it, so `crop` shifts the square and says so. `--pad` keeps your face centred instead and fills the part past the edge with black. With `--background remove`, the black is replaced by the flat background colour, but your shoulder is cut off in a straight line where the photo ends.
 
 ### 2. Compare all techniques
 

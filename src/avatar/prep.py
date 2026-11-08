@@ -33,8 +33,15 @@ def _rembg(img: Image.Image) -> tuple[Image.Image, str] | None:
         return None
     print(f"mask: segmenting with rembg/{MODEL} (the first run downloads the model)...")
     img = img.convert("RGB").resize((WORK_SIZE, WORK_SIZE), Image.LANCZOS)
-    mask = remove(img, session=new_session(MODEL), only_mask=True, post_process_mask=True)
-    return mask.convert("L"), f"rembg/{MODEL}"
+    # Segment only the photo itself: black padding confuses the model.
+    left, top, right, bottom = _padding(img)
+    box = (left, top, WORK_SIZE - right, WORK_SIZE - bottom)
+    if box[0] >= box[2] or box[1] >= box[3]:
+        die("the image is entirely black")
+    part = remove(img.crop(box), session=new_session(MODEL), only_mask=True, post_process_mask=True)
+    mask = Image.new("L", img.size, 0)
+    mask.paste(part.convert("L"), box[:2])
+    return mask, f"rembg/{MODEL}"
 
 
 def _from_file(path: Path) -> Image.Image:
@@ -50,8 +57,26 @@ def _from_file(path: Path) -> Image.Image:
     return img.convert("L")
 
 
-def _clean(mask: Image.Image) -> Image.Image:
-    m = np.asarray(mask.resize((WORK_SIZE, WORK_SIZE), Image.LANCZOS))
+def _padding(img: Image.Image) -> tuple[int, int, int, int]:
+    """Black bars added to make the photo square (crop --pad, sips, Inkscape): widths at the
+    left, top, right and bottom, in WORK_SIZE pixels. Whole rows/columns of near-black only."""
+    g = np.asarray(img.convert("L").resize((WORK_SIZE, WORK_SIZE), Image.BILINEAR))
+    dark_cols, dark_rows = (g < 16).all(axis=0), (g < 16).all(axis=1)
+
+    def run(flags) -> int:  # how many leading entries are True
+        return int(np.argmin(flags)) if not flags.all() else len(flags)
+
+    return run(dark_cols), run(dark_rows), run(dark_cols[::-1]), run(dark_rows[::-1])
+
+
+def _clean(mask: Image.Image, img: Image.Image) -> Image.Image:
+    m = np.array(mask.resize((WORK_SIZE, WORK_SIZE), Image.LANCZOS))
+    # rembg can count black padding next to dark clothes as part of you: never keep it.
+    left, top, right, bottom = _padding(img)
+    m[:, :left] = 0
+    m[:top] = 0
+    m[:, WORK_SIZE - right :] = 0
+    m[WORK_SIZE - bottom :] = 0
     # Keep only the largest connected region (drops stray bits), soften the edge.
     n, labels, stats, _ = cv2.connectedComponentsWithStats((m > 127).astype(np.uint8), connectivity=8)
     if n > 2:
@@ -78,7 +103,7 @@ def get_mask(src: Path, img: Image.Image, stem: str, *, mask_from: Path | None, 
             return None
         mask, how = result
     path.parent.mkdir(parents=True, exist_ok=True)
-    cleaned = _clean(mask)
+    cleaned = _clean(mask, img)
     cleaned.save(path)
     print(f"mask: {how} -> {rel(path)}")
     return np.asarray(cleaned)

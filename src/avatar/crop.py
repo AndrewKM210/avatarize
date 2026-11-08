@@ -61,19 +61,17 @@ def auto_box(img: Image.Image, zoom: float, face_index: int | None, pad: bool) -
     cx_, cy_ = max(0, min(x, w - side)), max(0, min(y, h - side))
     if max(abs(cx_ - x), abs(cy_ - y)) > 0.05 * side:
         print("note: the face is close to the photo edge, so the crop was shifted and the face is off-centre.\n"
-              "      --pad keeps it centred by mirroring the photo past its edge (use --zoom to limit how much)")
+              "      --pad keeps it centred and fills the part past the photo edge with black")
     return cx_, cy_, side
 
 
 def _padded_crop(img: Image.Image, x: int, y: int, side: int) -> Image.Image:
-    """Crop that may extend past the photo; the missing part is the photo mirrored at its edge."""
+    """Crop that may extend past the photo; the missing part is black."""
     a = np.asarray(img.convert("RGB"))
     h, w = a.shape[:2]
     left, top = max(0, -x), max(0, -y)
     right, bottom = max(0, x + side - w), max(0, y + side - h)
-    if max(left, right) >= w or max(top, bottom) >= h:
-        die(f"box {x},{y},{side} extends further past the photo than the photo is wide; use a smaller --zoom")
-    a = np.pad(a, ((top, bottom), (left, right), (0, 0)), mode="reflect")
+    a = np.pad(a, ((top, bottom), (left, right), (0, 0)), mode="constant", constant_values=0)
     return Image.fromarray(a[y + top : y + top + side, x + left : x + left + side])
 
 
@@ -91,7 +89,7 @@ def crop(image: str, box: tuple[int, int, int] | None, zoom: float, face: int | 
     if box:
         x, y, side = box
         if not pad and (x < 0 or y < 0 or x + side > w or y + side > h):
-            die(f"box {x},{y},{side} falls outside the {w}×{h} image (add --pad to fill the rest by mirroring)")
+            die(f"box {x},{y},{side} falls outside the {w}×{h} image (add --pad to fill the rest with black)")
     else:
         x, y, side = auto_box(img, zoom, face, pad)
 
@@ -103,6 +101,6 @@ def crop(image: str, box: tuple[int, int, int] | None, zoom: float, face: int | 
         cropped = cropped.convert("RGB")
     cropped.save(dst, **({"quality": 95} if jpeg else {}))  # no exif= argument: metadata is not copied
     print(f"cropped {rel(src)} ({w}×{h}) at box {x},{y},{side} -> {rel(dst)} ({side}×{side})"
-          + (", edges mirrored" if outside else ""))
+          + (", padded with black" if outside else ""))
     if side < 1024:
         warn(f"the crop is only {side}px; it will be upscaled to 1024px, so expect softer results")

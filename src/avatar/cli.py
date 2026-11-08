@@ -318,7 +318,7 @@ def main(argv: list[str] | None = None) -> None:
                    help="crop side as a multiple of the face height (default 2.6; larger = looser)")
     p.add_argument("--face", type=int, metavar="N", help="which face to crop around, counted left to right")
     p.add_argument("--pad", action="store_true",
-                   help="let the crop extend past the photo edge, filling it by mirroring the photo")
+                   help="let the crop extend past the photo edge, filling it with black")
     p.add_argument("--box", type=parse_box, metavar="X,Y,SIZE", help="explicit square crop in original pixels (negative values: --box=-100,0,1800 --pad)")
     p.add_argument("--out", metavar="NAME", help="output filename in assets/cropped/ (default: same as input)")
     p.add_argument("--force", action="store_true", help="overwrite an existing crop")
